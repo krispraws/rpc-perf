@@ -60,6 +60,8 @@ pub struct Topics {
     topic_distribution: Distribution,
     #[serde(default)]
     partition_distribution: Distribution,
+    #[serde(default)]
+    subscribers_per_topic: Option<usize>,
 }
 
 impl Topics {
@@ -105,6 +107,10 @@ impl Topics {
 
     pub fn partition_distribution(&self) -> Distribution {
         self.partition_distribution
+    }
+
+    pub fn subscribers_per_topic(&self) -> Option<usize> {
+        self.subscribers_per_topic
     }
 }
 
