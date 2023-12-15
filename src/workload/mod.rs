@@ -377,6 +377,7 @@ pub struct Topics {
     message_len: usize,
     subscriber_poolsize: usize,
     subscriber_concurrency: usize,
+    subscribers_per_topic: Option<usize>,
 }
 
 impl Topics {
@@ -387,6 +388,7 @@ impl Topics {
         let message_len = topics.message_len();
         let subscriber_poolsize = topics.subscriber_poolsize();
         let subscriber_concurrency = topics.subscriber_concurrency();
+        let subscribers_per_topic = topics.subscribers_per_topic();
         let topic_dist = match topics.topic_distribution() {
             config::Distribution::Uniform => Distribution::Uniform(Uniform::new(0, ntopics)),
             config::Distribution::Zipf => {
@@ -420,6 +422,7 @@ impl Topics {
             message_len,
             subscriber_poolsize,
             subscriber_concurrency,
+            subscribers_per_topic,
         }
     }
 
@@ -433,6 +436,10 @@ impl Topics {
 
     pub fn subscriber_concurrency(&self) -> usize {
         self.subscriber_concurrency
+    }
+
+    pub fn subscribers_per_topic(&self) -> Option<usize> {
+        self.subscribers_per_topic
     }
 }
 
