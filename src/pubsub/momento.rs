@@ -67,8 +67,8 @@ pub fn launch_subscribers(
                 clients.push(client);
             }
             let mut client_index = 0;
-            for topic in topics.topics() {
-                for _ in 0..subscribers_per_topic {
+            for _ in 0..subscribers_per_topic {
+                for topic in topics.topics() {
                     // Round-robin over the clients to pick one
                     let client = &clients[client_index];
                     client_index = (client_index + 1) % clients.len();
