@@ -1,12 +1,14 @@
 /// Removes a key from the cache.
 use super::*;
+use crate::clients::compute_hash;
 
-impl From<&workload::client::Delete> for RequestWithValidator {
+impl From<&workload::client::Delete> for RequestWithValidatorAndHash {
     fn from(other: &workload::client::Delete) -> Self {
         DELETE.increment();
-        RequestWithValidator {
+        RequestWithValidatorAndHash {
             request: Request::delete((*other.key).to_owned().into_boxed_slice(), false),
             validator: Box::new(validate_response),
+            hash: compute_hash(&other.key),
         }
     }
 }

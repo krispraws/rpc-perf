@@ -850,6 +850,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "consistent_hash_ring"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6478ccd2238cf23733ad631f1790b2973e66c7b4cf2f63c592f61cd5f6b35bf2"
+dependencies = [
+ "fnv",
+]
+
+[[package]]
 name = "const-oid"
 version = "0.9.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3328,6 +3337,7 @@ dependencies = [
  "bytes",
  "chrono",
  "clap",
+ "consistent_hash_ring",
  "flate2",
  "foreign-types-shared 0.3.1",
  "futures",
@@ -3384,6 +3394,7 @@ dependencies = [
  "url-escape",
  "warp",
  "webpki-roots 0.26.8",
+ "xxhash-rust",
 ]
 
 [[package]]
@@ -5129,6 +5140,12 @@ name = "writeable"
 version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e9df38ee2d2c3c5948ea468a8406ff0db0b29ae1ffde1bcf20ef305bcc95c51"
+
+[[package]]
+name = "xxhash-rust"
+version = "0.8.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fdd20c5420375476fbd4394763288da7eb0cc0b8c11deed431a91562af7335d3"
 
 [[package]]
 name = "yoke"

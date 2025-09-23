@@ -10,6 +10,12 @@ pub mod ping;
 pub mod pubsub;
 pub mod store;
 
+use xxhash_rust::xxh3::xxh3_64;
+
+pub fn compute_hash(to_hash: &[u8]) -> u64 {
+    xxh3_64(to_hash)
+}
+
 pub enum ResponseError {
     /// Some exception while reading the response
     Exception,

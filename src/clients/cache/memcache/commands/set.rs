@@ -1,11 +1,12 @@
 // Sets a key-value pair in the cache.
 
 use super::*;
+use crate::clients::compute_hash;
 
-impl From<&workload::client::Set> for RequestWithValidator {
+impl From<&workload::client::Set> for RequestWithValidatorAndHash {
     fn from(other: &workload::client::Set) -> Self {
         SET.increment();
-        RequestWithValidator {
+        RequestWithValidatorAndHash {
             request: Request::set(
                 (*other.key).to_owned().into_boxed_slice(),
                 (*other.value).to_owned().into_boxed_slice(),
@@ -14,6 +15,7 @@ impl From<&workload::client::Set> for RequestWithValidator {
                 false,
             ),
             validator: Box::new(validate_response),
+            hash: compute_hash(&other.key),
         }
     }
 }

@@ -1,10 +1,11 @@
 /// Replaces a key-value pair within the cache. The key must already be present.
 use super::*;
+use crate::clients::compute_hash;
 
-impl From<&workload::client::Replace> for RequestWithValidator {
+impl From<&workload::client::Replace> for RequestWithValidatorAndHash {
     fn from(other: &workload::client::Replace) -> Self {
         REPLACE.increment();
-        RequestWithValidator {
+        RequestWithValidatorAndHash {
             request: Request::replace(
                 (*other.key).to_owned().into_boxed_slice(),
                 (*other.value).to_owned().into_boxed_slice(),
@@ -13,6 +14,7 @@ impl From<&workload::client::Replace> for RequestWithValidator {
                 false,
             ),
             validator: Box::new(validate_response),
+            hash: compute_hash(&other.key),
         }
     }
 }

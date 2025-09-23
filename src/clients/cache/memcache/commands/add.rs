@@ -1,10 +1,11 @@
 /// Adds a key-value pair to the cache if it does not already exist.
 use super::*;
+use crate::clients::compute_hash;
 
-impl From<&workload::client::Add> for RequestWithValidator {
+impl From<&workload::client::Add> for RequestWithValidatorAndHash {
     fn from(other: &workload::client::Add) -> Self {
         ADD.increment();
-        RequestWithValidator {
+        RequestWithValidatorAndHash {
             request: Request::add(
                 (*other.key).to_owned().into_boxed_slice(),
                 (*other.value).to_owned().into_boxed_slice(),
@@ -13,6 +14,7 @@ impl From<&workload::client::Add> for RequestWithValidator {
                 false,
             ),
             validator: Box::new(validate_response),
+            hash: compute_hash(&other.key),
         }
     }
 }

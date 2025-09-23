@@ -1,14 +1,16 @@
 /// Retrieve the value of a key in the cache.
 use super::*;
+use crate::clients::compute_hash;
 
-impl From<&workload::client::Get> for RequestWithValidator {
+impl From<&workload::client::Get> for RequestWithValidatorAndHash {
     fn from(other: &workload::client::Get) -> Self {
         GET.increment();
-        RequestWithValidator {
+        RequestWithValidatorAndHash {
             request: Request::get(
                 vec![(*other.key).to_owned().into_boxed_slice()].into_boxed_slice(),
             ),
             validator: Box::new(validate_response),
+            hash: compute_hash(&other.key),
         }
     }
 }
