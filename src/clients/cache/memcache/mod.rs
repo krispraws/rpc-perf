@@ -1,6 +1,7 @@
 use super::*;
 use crate::clients::ResponseError;
-use crate::net::Connector;
+use crate::net::{Connector, Stream};
+use consistent_hash_ring::Ring;
 use protocol_memcache::{Parse, Protocol, Request, Response, TextProtocol, Ttl};
 use session::{Buf, BufMut, Buffer};
 use std::borrow::{Borrow, BorrowMut};
@@ -12,31 +13,69 @@ struct RequestWithValidator {
     validator: Box<dyn Fn(Response) -> std::result::Result<(), ()> + Send>,
 }
 
-/// Launch tasks with one conncetion per task as memcache protocol is not mux-enabled.
+struct RequestRouter {
+    consistent_hash_ring: Ring<String>,
+}
+
+struct Endpoint {
+    stream: Option<Stream>,
+}
+
+impl RequestRouter {
+    fn new(endpoints: &[String]) -> Self {
+        let mut ring = Ring::default();
+        for endpoint in endpoints {
+            ring.insert(endpoint.clone());
+        }
+        Self {
+            consistent_hash_ring: ring,
+        }
+    }
+
+    fn route(
+        &self,
+        request: &ClientWorkItemKind<ClientRequest>,
+    ) -> std::result::Result<&String, &'static str> {
+        match request {
+            ClientWorkItemKind::Request { request, .. } => {
+                let hash_key = match request {
+                    ClientRequest::Add(r) => Ok(r.key.as_ref()),
+                    ClientRequest::Get(r) => Ok(r.key.as_ref()),
+                    ClientRequest::Delete(r) => Ok(r.key.as_ref()),
+                    ClientRequest::Replace(r) => Ok(r.key.as_ref()),
+                    ClientRequest::Set(r) => Ok(r.key.as_ref()),
+                    _ => Err("Unsupported request type"),
+                }?;
+                if let Some(endpoint_addr) = self.consistent_hash_ring.try_get(hash_key) {
+                    Ok(endpoint_addr)
+                } else {
+                    Err("No endpoints available")
+                }
+            }
+            _ => Err("Unsupported work item type"),
+        }
+    }
+}
+
+/// Launch tasks with one connection to each endpoint per task as memcache protocol is not mux-enabled.
 pub fn launch_tasks(
     runtime: &mut Runtime,
     config: Config,
     work_receiver: Receiver<ClientWorkItemKind<ClientRequest>>,
 ) {
     debug!("launching memcache protocol tasks");
-
+    let router = Arc::new(RequestRouter::new(config.target().endpoints()));
     // create one task per connection
     for _ in 0..config.client().unwrap().poolsize() {
-        for endpoint in config.target().endpoints() {
-            runtime.spawn(task(
-                work_receiver.clone(),
-                endpoint.clone(),
-                config.clone(),
-            ));
-        }
+        runtime.spawn(task(work_receiver.clone(), config.clone(), router.clone()));
     }
 }
 
 #[allow(clippy::slow_vector_initialization)]
 async fn task(
     work_receiver: Receiver<ClientWorkItemKind<ClientRequest>>,
-    endpoint: String,
     config: Config,
+    router: Arc<RequestRouter>,
 ) -> Result<()> {
     let connector = Connector::new(&config)?;
 
@@ -46,17 +85,25 @@ async fn task(
     // client config, so this unwrap will succeed.
     let client_config = config.client().unwrap();
 
-    let mut stream = None;
+    let mut endpoint_streams: HashMap<String, Endpoint> = HashMap::from_iter(
+        config
+            .target()
+            .endpoints()
+            .iter()
+            .map(|e| (e.clone(), Endpoint { stream: None })),
+    );
     let parser = protocol_memcache::ResponseParser {};
     let mut read_buffer = Buffer::new(client_config.read_buffer_size());
     let mut write_buffer = Buffer::new(client_config.write_buffer_size());
+    let mut reconnect_index = 0;
 
-    while RUNNING.load(Ordering::Relaxed) {
-        if stream.is_none() {
+    for (endpoint_addr, endpoint) in endpoint_streams.iter_mut() {
+        // attempt to connect
+        if endpoint.stream.is_none() {
             CONNECT.increment();
-            stream = match timeout(
+            endpoint.stream = match timeout(
                 client_config.connect_timeout(),
-                connector.connect(&endpoint),
+                connector.connect(endpoint_addr),
             )
             .await
             {
@@ -67,19 +114,21 @@ async fn task(
                 }
                 Ok(Err(_)) => {
                     CONNECT_EX.increment();
-                    sleep(Duration::from_millis(100)).await;
-                    continue;
+                    None
                 }
                 Err(_) => {
                     CONNECT_TIMEOUT.increment();
-                    sleep(Duration::from_millis(100)).await;
-                    continue;
+                    None
                 }
             }
         }
+    }
+    if endpoint_streams.values().any(|s| s.stream.is_none()) {
+        // We failed to connect to at least one of the endpoints, so we will retry after a short delay
+        sleep(Duration::from_millis(100)).await;
+    }
 
-        let mut s = stream.take().unwrap();
-
+    while RUNNING.load(Ordering::Relaxed) {
         let work_item = work_receiver
             .recv()
             .await
@@ -89,19 +138,65 @@ async fn task(
 
         // check if we should reconnect
         if work_item == ClientWorkItemKind::Reconnect {
-            CONNECT_CURR.decrement();
+            // round-robin reconnect, ignore the reconnect if connection was not established
+            let endpoint = endpoint_streams
+                .values_mut()
+                .nth(reconnect_index % config.target().endpoints().len())
+                .unwrap();
+            reconnect_index += 1;
+            if endpoint.stream.is_some() {
+                let _ = endpoint.stream.take();
+                CONNECT_CURR.decrement();
+                continue;
+            }
+        }
+
+        let route = router.route(&work_item);
+        if route.is_err() {
             continue;
         }
+        let endpoint_addr = route.unwrap();
 
         let request = RequestWithValidator::try_from(&work_item);
 
         // skip unsupported work items
         if request.is_err() {
-            stream = Some(s);
             continue;
         }
 
         let request = request.unwrap();
+        let endpoint = endpoint_streams.get_mut(endpoint_addr).unwrap();
+        // FIXME - need to add a delay between reconnects, might want to track the last connect attempt time in the hash map
+        if endpoint.stream.is_none() {
+            // attempt to connect
+            CONNECT.increment();
+            endpoint.stream = match timeout(
+                client_config.connect_timeout(),
+                connector.connect(endpoint_addr),
+            )
+            .await
+            {
+                Ok(Ok(s)) => {
+                    CONNECT_OK.increment();
+                    CONNECT_CURR.increment();
+                    Some(s)
+                }
+                Ok(Err(_)) => {
+                    CONNECT_EX.increment();
+                    None
+                }
+                Err(_) => {
+                    CONNECT_TIMEOUT.increment();
+                    None
+                }
+            };
+            if endpoint.stream.is_none() {
+                // failed to connect, skip this request
+                REQUEST_DROPPED.increment();
+                continue;
+            }
+        }
+        let mut s = endpoint.stream.take().unwrap();
 
         // compose request
         REQUEST_OK.increment();
@@ -188,7 +283,7 @@ async fn task(
                         let _ = hist.increment(latency_ns);
                     }
                     // preserve the connection for the next request
-                    stream = Some(s);
+                    endpoint.stream = Some(s);
                 }
             }
             Err(ResponseError::Exception) => {
