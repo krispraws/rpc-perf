@@ -163,7 +163,7 @@ fn main() {
         control_runtime.spawn(output::metrics(config.clone()));
 
         // begin cli output
-        control_runtime.spawn(output::log(config.clone()));
+        control_runtime.spawn(output::log(config.clone(), true));
 
         debug!("Launching replay clients");
         let replay_runtime = clients::cache::launch(&config, replay_receiver);
@@ -237,7 +237,7 @@ fn main() {
     control_runtime.spawn(output::metrics(config.clone()));
 
     // begin cli output
-    control_runtime.spawn(output::log(config.clone()));
+    control_runtime.spawn(output::log(config.clone(), false));
 
     debug!("Running workload generator");
     // start the workload generator(s)
