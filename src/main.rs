@@ -24,7 +24,7 @@ mod output;
 mod replay;
 mod workload;
 
-use config::{Protocol, *};
+use config::*;
 use metrics::*;
 
 static RUNNING: AtomicBool = AtomicBool::new(true);
