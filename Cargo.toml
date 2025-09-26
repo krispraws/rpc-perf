@@ -45,8 +45,8 @@ paste = "1.0.15"
 pelikan-net = { version = "0.4.1", default-features = false }
 pin-project = "1.1.10"
 prost = "0.13.5"
-protocol-memcache = { git = "https://github.com/pelikan-io/pelikan", rev = "de8c62d6361818f578f5a5c3249a365f258fdb5f"}
-protocol-ping = { git = "https://github.com/pelikan-io/pelikan", rev = "de8c62d6361818f578f5a5c3249a365f258fdb5f" }
+protocol-memcache = { git = "https://github.com/pelikan-io/pelikan" }
+protocol-ping = { git = "https://github.com/pelikan-io/pelikan" }
 quinn = "0.11.6"
 rand = "0.9.0"
 rand_distr = "0.5.1"
@@ -58,7 +58,7 @@ ringlog = "0.8.0"
 rustls = "0.23.23"
 rustls-native-certs = "0.8.1"
 serde = { version = "1.0.218", features = ["derive"] }
-session = { git = "https://github.com/pelikan-io/pelikan", rev = "de8c62d6361818f578f5a5c3249a365f258fdb5f" }
+session = { git = "https://github.com/pelikan-io/pelikan" }
 sha1 = "0.10.6"
 sha2 = "0.10.8"
 slab = "0.4.9"

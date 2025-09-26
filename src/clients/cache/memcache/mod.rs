@@ -2,7 +2,7 @@ use super::*;
 use crate::clients::ResponseError;
 use crate::net::{Connector, Stream};
 use consistent_hash_ring::Ring;
-use protocol_memcache::{Compose, Parse, Request, Response, Ttl};
+use protocol_memcache::{Parse, Protocol, Request, Response, TextProtocol, Ttl};
 use session::{Buf, BufMut, Buffer};
 use std::borrow::{Borrow, BorrowMut};
 
@@ -78,6 +78,8 @@ async fn task(
     router: Arc<RequestRouter>,
 ) -> Result<()> {
     let connector = Connector::new(&config)?;
+
+    let protocol = TextProtocol::default();
 
     // we would not be creating a memcache client task if we didn't have a
     // client config, so this unwrap will succeed.
@@ -198,7 +200,7 @@ async fn task(
 
         // compose request
         REQUEST_OK.increment();
-        request.request.compose(&mut write_buffer);
+        let _ = protocol.compose_request(&request.request, &mut write_buffer);
 
         // send request
         let start = Instant::now();
